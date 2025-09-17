@@ -1,11 +1,10 @@
 #pragma once
 
-#include utils/constants.glsl
-
 #if APPLY_COLOR_FILTER
-uniform int colorFilterPrevious;
-uniform int colorFilter;
-uniform float colorFilterFade;
+
+#include <uniforms/global.glsl>
+
+#include <utils/constants.glsl>
 
 #define COLOR_FILTER_NONE 0
 #define COLOR_FILTER_GREYSCALE 1
@@ -14,6 +13,7 @@ uniform float colorFilterFade;
 #define COLOR_FILTER_CARTOON 4
 #define COLOR_FILTER_INVERT 5
 #define COLOR_FILTER_BLACK_AND_WHITE 6
+#define COLOR_FILTER_CEL_SHADING 7
 
 vec3 applySingleColorFilter(int filterIndex, vec3 color) {
     switch (filterIndex) {
@@ -43,6 +43,12 @@ vec3 applySingleColorFilter(int filterIndex, vec3 color) {
             return 1 - color;
         case COLOR_FILTER_BLACK_AND_WHITE:
             return dot(color, vec3(0.2126, 0.7152, 0.0722)) > 0.4 ? vec3(1) : vec3(0);
+        case COLOR_FILTER_CEL_SHADING: {
+            float intensity = dot(color, vec3(0.299, 0.587, 0.114));
+            float quantizationLevels = 8.0;
+            float quantizedIntensity = floor(intensity * quantizationLevels) / quantizationLevels;
+            return color * quantizedIntensity / intensity;
+        }
         default:
             return color;
     }

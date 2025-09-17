@@ -36,9 +36,11 @@ import rs117.hd.config.ColorBlindMode;
 import rs117.hd.config.ColorFilter;
 import rs117.hd.config.Contrast;
 import rs117.hd.config.DefaultSkyColor;
+import rs117.hd.config.DynamicLights;
+import rs117.hd.config.FishingSpotStyle;
 import rs117.hd.config.FogDepthMode;
-import rs117.hd.config.MaxDynamicLights;
 import rs117.hd.config.Saturation;
+import rs117.hd.config.SceneScalingMode;
 import rs117.hd.config.SeasonalHemisphere;
 import rs117.hd.config.SeasonalTheme;
 import rs117.hd.config.ShadingMode;
@@ -51,7 +53,8 @@ import rs117.hd.config.VanillaShadowMode;
 
 import static rs117.hd.HdPlugin.MAX_DISTANCE;
 import static rs117.hd.HdPlugin.MAX_FOG_DEPTH;
-import static rs117.hd.HdPluginConfig.CONFIG_GROUP;
+import static rs117.hd.HdPluginConfig.*;
+import static rs117.hd.utils.MathUtils.*;
 
 @ConfigGroup(CONFIG_GROUP)
 public interface HdPluginConfig extends Config
@@ -76,7 +79,7 @@ public interface HdPluginConfig extends Config
 		description =
 			"The number of tiles to draw in either direction from the camera, up to a maximum of 184.<br>" +
 			"Depending on where the scene is centered, you might only see 16 tiles in one direction, unless you extend map loading.",
-		position = 0,
+		position = 1,
 		section = generalSettings
 	)
 	default int drawDistance() {
@@ -93,25 +96,54 @@ public interface HdPluginConfig extends Config
 		description =
 			"How much further the map should be loaded. The maximum is 5 extra chunks.<br>" +
 			"Note, extending the map can have a very high impact on performance.",
-		position = 1,
+		position = 2,
 		section = generalSettings
 	)
 	default int expandedMapLoadingChunks() {
 		return 3;
 	}
 
+	String KEY_ANTI_ALIASING_MODE = "antiAliasingMode";
 	@ConfigItem(
-		keyName = "antiAliasingMode",
+		keyName = KEY_ANTI_ALIASING_MODE,
 		name = "Anti-Aliasing",
 		description =
 			"Improves pixelated edges at the cost of significantly higher GPU usage.<br>" +
 			"MSAA x16 is very expensive, so x8 is recommended if anti-aliasing is desired.",
-		position = 2,
+		position = 3,
 		section = generalSettings
 	)
 	default AntiAliasingMode antiAliasingMode()
 	{
 		return AntiAliasingMode.DISABLED;
+	}
+
+	String KEY_SCENE_RESOLUTION_SCALE = "sceneResolutionScale";
+	@ConfigItem(
+		keyName = KEY_SCENE_RESOLUTION_SCALE,
+		name = "Game Resolution",
+		description =
+			"Render the game at a different resolution and stretch it to fit the screen.<br>" +
+			"Reducing this can improve performance, particularly on very high resolution displays.",
+		position = 4,
+		section = generalSettings
+	)
+	@Units(Units.PERCENT)
+	@Range(min = 1, max = 200)
+	default int sceneResolutionScale() {
+		return 100;
+	}
+
+	@ConfigItem(
+		keyName = "sceneScalingMode",
+		name = "Game Scaling Mode",
+		description = "The sampling function to use when upscaling the above reduced game resolution.",
+		position = 5,
+		section = generalSettings
+	)
+	default SceneScalingMode sceneScalingMode()
+	{
+		return SceneScalingMode.LINEAR;
 	}
 
 	String KEY_UI_SCALING_MODE = "uiScalingMode";
@@ -121,11 +153,10 @@ public interface HdPluginConfig extends Config
 		description =
 			"The sampling function to use when the Stretched Mode plugin is enabled.<br>" +
 			"Affects how the UI looks with non-integer scaling.",
-		position = 3,
+		position = 6,
 		section = generalSettings
 	)
-	default UIScalingMode uiScalingMode()
-	{
+	default UIScalingMode uiScalingMode() {
 		return UIScalingMode.LINEAR;
 	}
 
@@ -142,7 +173,7 @@ public interface HdPluginConfig extends Config
 			"At zero, mipmapping is disabled and textures look the most pixelated.<br>" +
 			"At 1 through 16, mipmapping is enabled, and textures look more blurry and smoothed out.<br>" +
 			"The higher you go beyond 1, the less blurry textures will look, up to a certain extent.",
-		position = 4,
+		position = 7,
 		section = generalSettings
 	)
 	default int anisotropicFilteringLevel()
@@ -155,7 +186,7 @@ public interface HdPluginConfig extends Config
 		keyName = KEY_UNLOCK_FPS,
 		name = "Unlock FPS",
 		description = "Removes the 50 FPS cap for some game content, such as camera movement and dynamic lighting.",
-		position = 5,
+		position = 8,
 		section = generalSettings
 	)
 	default boolean unlockFps()
@@ -181,7 +212,7 @@ public interface HdPluginConfig extends Config
 			"If set to 'on', the game will attempt to match your monitor's refresh rate <b>exactly</b>,<br>" +
 			"but if it can't keep up, FPS will be <u>halved until it catches up</u>. This option is rarely desired.<br>" +
 			"Note, GPUs that don't support Adaptive VSync will silently fall back to 'on'.",
-		position = 6,
+		position = 9,
 		section = generalSettings
 	)
 	default SyncMode syncMode()
@@ -196,7 +227,7 @@ public interface HdPluginConfig extends Config
 		description =
 			"Controls the maximum number of frames per second.<br>" +
 			"This setting only applies if Unlock FPS is enabled, and VSync Mode is set to 'off'.",
-		position = 7,
+		position = 10,
 		section = generalSettings
 	)
 	@Range(
@@ -213,7 +244,7 @@ public interface HdPluginConfig extends Config
 		keyName = KEY_COLOR_BLINDNESS,
 		name = "Color Blindness",
 		description = "Adjust colors to make them more distinguishable for people with a certain type of color blindness.",
-		position = 8,
+		position = 11,
 		section = generalSettings
 	)
 	default ColorBlindMode colorBlindness()
@@ -225,7 +256,7 @@ public interface HdPluginConfig extends Config
 		keyName = "colorBlindnessIntensity",
 		name = "Blindness Intensity",
 		description = "Specifies how intense the color blindness adjustment should be.",
-		position = 9,
+		position = 12,
 		section = generalSettings
 	)
 	@Units(Units.PERCENT)
@@ -239,7 +270,7 @@ public interface HdPluginConfig extends Config
 		keyName = "flashingEffects",
 		name = "Flashing Effects",
 		description = "Whether to show rapid flashing effects, such as lightning, in certain areas.",
-		position = 10,
+		position = 13,
 		section = generalSettings
 	)
 	default boolean flashingEffects()
@@ -252,14 +283,14 @@ public interface HdPluginConfig extends Config
 		name = "Saturation",
 		description = "Controls the saturation of the final rendered image.<br>" +
 			"Intended to be kept between 0% and 120%.",
-		position = 11,
+		position = 14,
 		section = generalSettings
 	)
 	@Units(Units.PERCENT)
 	@Range(min = -500, max = 500)
 	default int saturation()
 	{
-		return Math.round(oldSaturationDropdown().getAmount() * 100);
+		return round(oldSaturationDropdown().getAmount() * 100);
 	}
 	@ConfigItem(keyName = "saturation", hidden = true, name = "", description = "")
 	default Saturation oldSaturationDropdown()
@@ -272,19 +303,51 @@ public interface HdPluginConfig extends Config
 		name = "Contrast",
 		description = "Controls the contrast of the final rendered image.<br>" +
 			"Intended to be kept between 90% and 110%.",
-		position = 12,
+		position = 15,
 		section = generalSettings
 	)
 	@Units(Units.PERCENT)
 	@Range(min = -500, max = 500)
 	default int contrast()
 	{
-		return Math.round(oldContrastDropdown().getAmount() * 100);
+		return round(oldContrastDropdown().getAmount() * 100);
 	}
 	@ConfigItem(keyName = "contrast", hidden = true, name = "", description = "")
 	default Contrast oldContrastDropdown()
 	{
 		return Contrast.DEFAULT;
+	}
+
+	String KEY_BRIGHTNESS = "screenBrightness";
+	@Range(
+		min = 25,
+		max = 400
+	)
+	@Units(Units.PERCENT)
+	@ConfigItem(
+		keyName = KEY_BRIGHTNESS,
+		name = "Brightness",
+		description =
+			"Controls the brightness of the game, excluding UI.<br>" +
+			"Adjust until the disk on the left is barely visible.",
+		position = 16,
+		section = generalSettings
+	)
+	default int brightness() {
+		return 100;
+	}
+
+	@ConfigItem(
+		keyName = "useLegacyBrightness",
+		name = "Enable Legacy Brightness",
+		description =
+			"Whether the legacy brightness option below should be applied.<br>" +
+			"We recommend leaving this disabled.",
+		position = 17,
+		section = generalSettings
+	)
+	default boolean useLegacyBrightness() {
+		return false;
 	}
 
 	@Range(
@@ -293,13 +356,16 @@ public interface HdPluginConfig extends Config
 	)
 	@ConfigItem(
 		keyName = "brightness2",
-		name = "Brightness",
-		description = "Controls the brightness of environmental lighting.<br>" +
+		name = "Legacy Brightness",
+		description =
+			"Controls the strength of the sun and ambient lighting.<br>" +
 			"A brightness value of 20 is recommended.",
-		position = 13,
+		position = 18,
 		section = generalSettings
 	)
-	default int brightness() { return 20; }
+	default int legacyBrightness() {
+		return 20;
+	}
 
 
 	/*====== Lighting settings ======*/
@@ -311,19 +377,31 @@ public interface HdPluginConfig extends Config
 	)
 	String lightingSettings = "lightingSettings";
 
-	String KEY_MAX_DYNAMIC_LIGHTS = "maxDynamicLights";
+	String KEY_DYNAMIC_LIGHTS = "dynamicLights";
 	@ConfigItem(
-		keyName = KEY_MAX_DYNAMIC_LIGHTS,
+		keyName = KEY_DYNAMIC_LIGHTS,
 		name = "Dynamic Lights",
 		description =
 			"The maximum number of dynamic lights visible at once.<br>" +
 			"Reducing this may improve performance.",
-		position = 1,
+		position = 0,
 		section = lightingSettings
 	)
-	default MaxDynamicLights maxDynamicLights()
+	default DynamicLights dynamicLights()
 	{
-		return MaxDynamicLights.SOME;
+		return DynamicLights.SOME;
+	}
+
+	String KEY_TILED_LIGHTING = "tiledLighting";
+	@ConfigItem(
+		keyName = KEY_TILED_LIGHTING,
+		name = "Tiled Lighting",
+		description = "Allows rendering <b>a lot</b> more lights simultaneously.",
+		section = lightingSettings,
+		position = 1
+	)
+	default boolean tiledLighting() {
+		return true;
 	}
 
 	String KEY_PROJECTILE_LIGHTS = "projectileLights";
@@ -381,16 +459,27 @@ public interface HdPluginConfig extends Config
 
 	String KEY_SHADOW_TRANSPARENCY = "enableShadowTransparency";
 	@ConfigItem(
-		keyName = "enableShadowTransparency",
+		keyName = KEY_SHADOW_TRANSPARENCY,
 		name = "Shadow Transparency",
-		description =
-			"Enables partial support for shadows that take transparency into account.",
+		description = "Enables partial support for shadows that take transparency into account.",
 		position = 6,
 		section = lightingSettings
 	)
 	default boolean enableShadowTransparency()
 	{
 		return true;
+	}
+
+	String KEY_PIXELATED_SHADOWS = "pixelatedShadows";
+	@ConfigItem(
+		keyName = KEY_PIXELATED_SHADOWS,
+		name = "Pixelated Shadows",
+		description = "Give shadows a slightly pixelated look.",
+		position = 7,
+		section = lightingSettings
+	)
+	default boolean pixelatedShadows() {
+		return false;
 	}
 
 	String KEY_SHADOW_RESOLUTION = "shadowResolution";
@@ -400,7 +489,7 @@ public interface HdPluginConfig extends Config
 		description =
 			"The resolution of the shadow map.<br>" +
 			"Higher resolutions result in higher quality shadows, at the cost of higher GPU usage.",
-		position = 7,
+		position = 8,
 		section = lightingSettings
 	)
 	default ShadowResolution shadowResolution()
@@ -585,7 +674,9 @@ public interface HdPluginConfig extends Config
 	@ConfigItem(
 		keyName = KEY_MODEL_TEXTURES,
 		name = "Model Textures",
-		description = "Adds textures to some models.",
+		description =
+			"Adds new textures to most models. If disabled, the standard game textures will be used instead.<br>" +
+			"Note, this requires model caching in order to apply to animated models.",
 		position = 7,
 		section = environmentSettings
 	)
@@ -597,7 +688,7 @@ public interface HdPluginConfig extends Config
 	@ConfigItem(
 		keyName = KEY_GROUND_TEXTURES,
 		name = "Ground Textures",
-		description = "Adds textures to some ground tiles.",
+		description = "Adds new textures to most ground tiles.",
 		position = 8,
 		section = environmentSettings
 	)
@@ -656,6 +747,29 @@ public interface HdPluginConfig extends Config
 		return true;
 	}
 
+	String KEY_WIND_DISPLACEMENT = "windDisplacement";
+	@ConfigItem(
+		keyName = KEY_WIND_DISPLACEMENT,
+		name = "Wind Displacement",
+		description = "Controls whether things like grass and leaves should be affected by wind.",
+		position = 13,
+		section = environmentSettings
+	)
+	default boolean windDisplacement() {
+		return true;
+	}
+
+	String KEY_CHARACTER_DISPLACEMENT = "characterDisplacement";
+	@ConfigItem(
+		keyName = KEY_CHARACTER_DISPLACEMENT,
+		name = "Character Displacement",
+		description = "Let players & NPCs affect things like grass whilst walking around.",
+		position = 14,
+		section = environmentSettings
+	)
+	default boolean characterDisplacement() {
+		return true;
+	}
 
 	/*====== Model caching settings ======*/
 
@@ -794,15 +908,15 @@ public interface HdPluginConfig extends Config
 		return false;
 	}
 
-	String KEY_REPLACE_FISHING_SPOTS = "replaceFishingSpots";
+	String KEY_FISHING_SPOT_STYLE = "fishingSpotStyle";
 	@ConfigItem(
-		keyName = KEY_REPLACE_FISHING_SPOTS,
-		name = "Replace Fishing Spots",
-		description = "Replace certain fishing spots with more appropriate models that are easier to see.",
+		keyName = KEY_FISHING_SPOT_STYLE,
+		name = "Fishing spot style",
+		description = "Choose the appearance of most fishing spots. Bubbles are the easiest to see on top of 117 HD's water style.",
 		section = miscellaneousSettings
 	)
-	default boolean replaceFishingSpots() {
-		return true;
+	default FishingSpotStyle fishingSpotStyle() {
+		return FishingSpotStyle.HD;
 	}
 
 	String KEY_COLOR_FILTER = "colorFilter";
@@ -830,6 +944,28 @@ public interface HdPluginConfig extends Config
 		return true;
 	}
 
+	String KEY_FILL_GAPS_IN_TERRAIN = "fillGapsInTerrain";
+	@ConfigItem(
+		keyName = KEY_FILL_GAPS_IN_TERRAIN,
+		name = "Fill gaps in terrain",
+		description = "Attempt to patch all holes in the ground, such as around trapdoors and ladders.",
+		section = miscellaneousSettings
+	)
+	default boolean fillGapsInTerrain() {
+		return true;
+	}
+
+	String KEY_FLAT_SHADING = "flatShading";
+	@ConfigItem(
+		keyName = KEY_FLAT_SHADING,
+		name = "Flat shading",
+		description = "Gives a more low-poly look to the game.",
+		section = miscellaneousSettings
+	)
+	default boolean flatShading() {
+		return false;
+	}
+
 
 	/*====== Experimental settings ======*/
 
@@ -840,17 +976,6 @@ public interface HdPluginConfig extends Config
 		closedByDefault = true
 	)
 	String experimentalSettings = "experimentalSettings";
-
-	String KEY_FILL_GAPS_IN_TERRAIN = "experimentalFillGapsInTerrain2";
-	@ConfigItem(
-		keyName = KEY_FILL_GAPS_IN_TERRAIN,
-		name = "Fill gaps in terrain",
-		description = "Attempt to patch all holes in the ground, such as around trapdoors and ladders.",
-		section = experimentalSettings
-	)
-	default boolean fillGapsInTerrain() {
-		return true;
-	}
 
 	String KEY_FASTER_MODEL_HASHING = "experimentalFasterModelHashing";
 	@ConfigItem(
@@ -887,17 +1012,6 @@ public interface HdPluginConfig extends Config
 		return ShadingMode.DEFAULT;
 	}
 
-	String KEY_FLAT_SHADING = "experimentalFlatShading";
-	@ConfigItem(
-		keyName = KEY_FLAT_SHADING,
-		name = "Flat shading",
-		description = "Gives a more low-poly look to the game.",
-		section = experimentalSettings
-	)
-	default boolean flatShading() {
-		return false;
-	}
-
 	String KEY_DECOUPLE_WATER_FROM_SKY_COLOR = "experimentalDecoupleWaterFromSkyColor";
 	@ConfigItem(
 		keyName = KEY_DECOUPLE_WATER_FROM_SKY_COLOR,
@@ -920,6 +1034,27 @@ public interface HdPluginConfig extends Config
 		return true;
 	}
 
+	String KEY_WIREFRAME = "wireframe";
+	@ConfigItem(
+		keyName = KEY_WIREFRAME,
+		name = "Wireframe",
+		description = "Show the edges of individual triangles in the scene.",
+		section = experimentalSettings
+	)
+	default boolean wireframe() {
+		return false;
+	}
+
+	String KEY_ASYNC_UI_COPY = "experimentalAsyncUICopy";
+	@ConfigItem(
+		keyName = KEY_ASYNC_UI_COPY,
+		name = "Perform UI copy asynchronously",
+		description = "Slightly improves performance by delaying the UI by one frame.",
+		section = experimentalSettings
+	)
+	default boolean asyncUICopy() {
+		return false;
+	}
 
 	/*====== Internal settings ======*/
 

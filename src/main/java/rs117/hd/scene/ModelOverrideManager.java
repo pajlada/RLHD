@@ -23,10 +23,8 @@ import static rs117.hd.utils.ResourcePath.path;
 @Slf4j
 @Singleton
 public class ModelOverrideManager {
-	private static final ResourcePath MODEL_OVERRIDES_PATH = Props.getPathOrDefault(
-		"rlhd.model-overrides-path",
-		() -> path(ModelOverrideManager.class, "model_overrides.json")
-	);
+	private static final ResourcePath MODEL_OVERRIDES_PATH = Props
+		.getFile("rlhd.model-overrides-path", () -> path(ModelOverrideManager.class, "model_overrides.json"));
 
 	@Inject
 	private Client client;
@@ -36,6 +34,9 @@ public class ModelOverrideManager {
 
 	@Inject
 	private HdPlugin plugin;
+
+	@Inject
+	private GamevalManager gamevalManager;
 
 	@Inject
 	private ModelPusher modelPusher;
@@ -48,14 +49,14 @@ public class ModelOverrideManager {
 	private FileWatcher.UnregisterCallback fileWatcher;
 
 	public void startUp() {
-		fileWatcher = MODEL_OVERRIDES_PATH.watch((path, first) -> {
-			modelOverrides.clear();
-
+		fileWatcher = MODEL_OVERRIDES_PATH.watch((path, first) -> clientThread.invoke(() -> {
 			try {
-				ModelOverride[] entries = path.loadJson(plugin.getGson(), ModelOverride[].class);
-				if (entries == null)
+				ModelOverride[] parsedOverrides = path.loadJson(plugin.getGson(), ModelOverride[].class);
+				if (parsedOverrides == null)
 					throw new IOException("Empty or invalid: " + path);
-				for (ModelOverride override : entries) {
+
+				modelOverrides.clear();
+				for (ModelOverride override : parsedOverrides) {
 					try {
 						override.normalize(plugin.configVanillaShadowMode);
 					} catch (IllegalStateException ex) {
@@ -73,21 +74,19 @@ public class ModelOverrideManager {
 					}
 				}
 
+				addOverride(fishingSpotReplacer.getModelOverride());
+
 				log.debug("Loaded {} model overrides", modelOverrides.size());
-			} catch (IOException ex) {
+
+				if (first)
+					return;
+
+				modelPusher.clearModelCache();
+				plugin.reuploadScene();
+			} catch (Exception ex) {
 				log.error("Failed to load model overrides:", ex);
 			}
-
-			addOverride(fishingSpotReplacer.getModelOverride());
-
-			if (!first) {
-				clientThread.invoke(() -> {
-					modelPusher.clearModelCache();
-					if (client.getGameState() == GameState.LOGGED_IN)
-						client.setGameState(GameState.LOADING);
-				});
-			}
-		});
+		}));
 	}
 
 	public void shutDown() {
@@ -136,6 +135,35 @@ public class ModelOverrideManager {
 			// A dummy override is used as the base if only area-specific overrides exist
 			isDuplicate = current != null && !current.isDummy;
 
+			if (isDuplicate && Props.DEVELOPMENT) {
+				String name = null;
+				switch (type) {
+					case ModelHash.TYPE_NPC:
+						name = gamevalManager.getNpcName(id);
+						break;
+					case ModelHash.TYPE_OBJECT:
+						name = gamevalManager.getObjectName(id);
+						break;
+					case ModelHash.TYPE_PROJECTILE:
+					case ModelHash.TYPE_GRAPHICS_OBJECT:
+						name = gamevalManager.getSpotanimName(id);
+						break;
+				}
+
+				// This should ideally not be reached, so print helpful warnings in development mode
+				if (entry.hideInAreas.length > 0) {
+					log.error(
+						"Replacing {} ({}) from '{}' with hideInAreas-override '{}'. This is likely a mistake...",
+						name, id, current.description, entry.description
+					);
+				} else {
+					log.error(
+						"Replacing {} ({}) from '{}' with '{}'. The first-mentioned override should be removed.",
+						name, id, current.description, entry.description
+					);
+				}
+			}
+
 			if (current != null && current.areaOverrides != null && !current.areaOverrides.isEmpty()) {
 				var areaOverrides = current.areaOverrides;
 				current = entry.copy();
@@ -158,21 +186,6 @@ public class ModelOverrideManager {
 
 			for (var area : entry.areas)
 				current.areaOverrides.put(area, entry);
-		}
-
-		if (isDuplicate && Props.DEVELOPMENT) {
-			// This should ideally not be reached, so print helpful warnings in development mode
-			if (entry.hideInAreas.length > 0) {
-				System.err.printf(
-					"Replacing ID %d from '%s' with hideInAreas-override '%s'. This is likely a mistake...\n",
-					id, current.description, entry.description
-				);
-			} else {
-				System.err.printf(
-					"Replacing ID %d from '%s' with '%s'. The first-mentioned override should be removed.\n",
-					id, current.description, entry.description
-				);
-			}
 		}
 	}
 
